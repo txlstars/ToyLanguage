@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"toylanguage/ast"
 	"toylanguage/lexer"
 	"toylanguage/parser"
 
@@ -58,10 +59,12 @@ func main() {
 
 	goParser := parser.NewGoParser(antlr.NewCommonTokenStream(goLexer, 0))
 	goAST := goParser.SourceFile()
-
 	if *dumpAST {
 		text := goAST.ToStringTree(goLexer.RuleNames, goAST.GetParser())
 		fmt.Println(text)
 		return
 	}
+
+	walker := antlr.NewParseTreeWalker()
+	walker.Walk(&ast.GenAST{}, goAST)
 }
