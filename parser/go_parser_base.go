@@ -2,6 +2,7 @@ package parser
 
 import (
 	"strings"
+	"toylanguage/lexer"
 
 	"github.com/antlr/antlr4/runtime/Go/antlr"
 )
@@ -27,15 +28,15 @@ func (p *GoParserBase) lineTerminatorAhead() bool {
 	ahead := p.GetTokenStream().Get(possibleIndexEosToken)
 
 	for ahead.GetChannel() == antlr.LexerHidden {
-		if ahead.GetTokenType() == GoLexerTERMINATOR {
+		if ahead.GetTokenType() == lexer.GoLexerTERMINATOR {
 			return true
 		}
-		if ahead.GetTokenType() == GoLexerWS {
+		if ahead.GetTokenType() == lexer.GoLexerWS {
 			offset++
 			possibleIndexEosToken = p.GetCurrentToken().GetTokenIndex() - offset
 			ahead = p.GetTokenStream().Get(possibleIndexEosToken)
 		}
-		if ahead.GetTokenType() == GoLexerCOMMENT || ahead.GetTokenType() == GoLexerLINE_COMMENT {
+		if ahead.GetTokenType() == lexer.GoLexerCOMMENT || ahead.GetTokenType() == lexer.GoLexerLINE_COMMENT {
 			if strings.Contains(ahead.GetText(), "\r") || strings.Contains(ahead.GetText(), "\n") {
 				return true
 			} else {
@@ -72,13 +73,13 @@ func (p *GoParserBase) noTerminatorAfterParams(tokenOffset int) bool {
 	rightParams := 0
 	var tokenType int
 
-	if stream.LT(tokenOffset).GetTokenType() == GoLexerL_PAREN {
+	if stream.LT(tokenOffset).GetTokenType() == lexer.GoLexerL_PAREN {
 		for leftParams != rightParams {
 			tokenOffset++
 			tokenType = stream.LT(tokenOffset).GetTokenType()
-			if tokenType == GoLexerL_PAREN {
+			if tokenType == lexer.GoLexerL_PAREN {
 				leftParams++
-			} else if tokenType == GoLexerR_PAREN {
+			} else if tokenType == lexer.GoLexerR_PAREN {
 				rightParams++
 			}
 		}
