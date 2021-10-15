@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"toylanguage/ast"
-	"toylanguage/lexer"
 	"toylanguage/parser"
 
 	"github.com/antlr/antlr4/runtime/Go/antlr"
@@ -14,6 +16,10 @@ import (
 var dumpTokens = flag.Bool("dump-tokens", false, "print tokens")
 
 var dumpAST = flag.Bool("dump-ast", false, "print ast")
+
+var dumpASTIndent = flag.Bool("dump-ast-indent", false, "print ast")
+
+var genInterface = flag.Bool("gen-interface", false, "gen interface")
 
 func init() {
 	if len(os.Args) <= 1 {
@@ -30,7 +36,7 @@ func usage() {
 	flag.CommandLine.PrintDefaults()
 }
 
-func DumpTokens(goLexer *lexer.GoLexer) {
+func DumpTokens(goLexer *parser.GoLexer) {
 	for {
 		token := goLexer.NextToken()
 		fmt.Println(token)
@@ -40,18 +46,34 @@ func DumpTokens(goLexer *lexer.GoLexer) {
 	}
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+
 func main() {
 	if len(flag.Args()) <= 0 {
 		usage()
 		return
 	}
-	fmt.Println(flag.Args())
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close() // error handling omitted for example
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	input, err := antlr.NewFileStream(flag.Args()[0])
+	// input, err := ioutil.ReadFile(flag.Args()[0])
 	if err != nil {
 		panic(err)
 	}
 
-	goLexer := lexer.NewGoLexer(input)
+	goLexer := parser.NewGoLexer(input)
 	if *dumpTokens {
 		DumpTokens(goLexer)
 		return
@@ -60,11 +82,35 @@ func main() {
 	goParser := parser.NewGoParser(antlr.NewCommonTokenStream(goLexer, 0))
 	goAST := goParser.SourceFile()
 	if *dumpAST {
-		text := goAST.ToStringTree(goLexer.RuleNames, goAST.GetParser())
-		fmt.Println(text)
+		fmt.Println(antlr.TreesStringTree(goAST, []string{}, goParser))
 		return
 	}
 
-	walker := antlr.NewParseTreeWalker()
-	walker.Walk(&ast.GenAST{}, goAST)
+	if *genInterface {
+		walker := new(antlr.ParseTreeWalker)
+		tool := ast.NewGenInterfaceTool()
+		walker.Walk(tool, goAST)
+		tool.CodeGen()
+		return
+	}
+
+	if *dumpASTIndent {
+		tool := ast.NewDumpASTTool()
+		tool.Visit(goAST)
+		tool.Dump()
+		return
+	}
+
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+		defer f.Close() // error handling omitted for example
+		runtime.GC()    // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
+	}
+
 }
